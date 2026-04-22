@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER ────────────────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  name          String
+  avatar        String?
+  isVerified    Boolean  @default(false)
+  verifyToken   String?
+  resetToken    String?
+  resetTokenExp DateTime?
+  refreshToken  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
+  workspaceMembers  WorkspaceMember[]
+  assignedTasks     Task[]            @relation("TaskAssignee")
+  createdTasks      Task[]            @relation("TaskCreator")
+  comments          Comment[]
+  notifications     Notification[]
+}
+
+// ─── WORKSPACE ───────────────────────────────────────────────
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Who owns this workspace
+  ownerId String
+  owner   User   @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+
+  // Relations
+  members  WorkspaceMember[]
+  projects Project[]
+}
+
+// ─── WORKSPACE MEMBER ────────────────────────────────────────
+// This is a JOIN TABLE — connects Users to Workspaces with a role
+// Many-to-Many: one user can be in many workspaces
+//               one workspace can have many users
+model WorkspaceMember {
+  id          String          @id @default(uuid())
+  role        WorkspaceRole   @default(MEMBER)
+  joinedAt    DateTime        @default(now())
+
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // A user can only be in a workspace once
+  @@unique([userId, workspaceId])
+}
+
+// ─── PROJECT ─────────────────────────────────────────────────
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  color       String        @default("#6366f1")
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // Relations
+  tasks  Task[]
+  labels Label[]
+}
+
+// ─── TASK ────────────────────────────────────────────────────
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  position    Int          @default(0) // For drag & drop ordering
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Project this task belongs to
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Who created this task
+  creatorId String
+  creator   User   @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  // Who is assigned to this task (optional)
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  // Self-relation — a task can have subtasks (which are also tasks)
+  parentId String?
+  parent   Task?   @relation("SubTasks", fields: [parentId], references: [id])
+  subtasks Task[]  @relation("SubTasks")
+
+  // Relations
+  comments Comment[]
+  labels   TaskLabel[]
+}
+
+// ─── LABEL ───────────────────────────────────────────────────
+model Label {
+  id        String  @id @default(uuid())
+  name      String
+  color     String  @default("#6366f1")
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  tasks TaskLabel[]
+}
+
+// ─── TASK LABEL (Join Table) ──────────────────────────────────
+// Many-to-Many: one task can have many labels
+//               one label can be on many tasks
+model TaskLabel {
+  taskId  String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+}
+
+// ─── COMMENT ─────────────────────────────────────────────────
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+}
+
+// ─── NOTIFICATION ────────────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  message   String
+  isRead    Boolean  @default(false)
+  type      String   // e.g. "TASK_ASSIGNED", "COMMENT_ADDED"
+  link      String?  // Frontend route to navigate to
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────
+// Enums = fixed set of allowed values — PostgreSQL enforces these
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
