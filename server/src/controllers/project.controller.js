@@ -1,0 +1,65 @@
+const projectService = require('../services/project.service');
+
+const createProject = async (req, res) => {
+    try {
+        const { name, description, color } = req.body;
+        if (!name) {
+            return res.status(400).json({ message: 'Project name is required' });
+        }
+        const result = await projectService.createProject(req.user.id, req.params.workspaceId, { name, description, color });
+        res.status(201).json({
+            message: 'Project created successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getProjects = async (req, res) => {
+    try {
+        const result = await projectService.getProjects(req.user.id, req.params.workspaceId);
+        res.status(200).json({
+            message: 'Projects fetched successfully',
+            data: result
+        });
+    }
+    catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getProjectById = async (req, res) => {    
+    try {
+        const result = await projectService.getProjectById(req.user.id, req.params.id);
+        res.status(200).json({
+            message: 'Project fetched successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const updateProject = async (req, res) => {
+    try {
+        const result = await projectService.updateProject(req.user.id, req.params.id, req.body);
+        res.status(200).json({
+            message: 'Project updated successfully',
+            data: result
+        });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const deleteProject = async (req, res) => {
+    try {
+        await projectService.deleteProject(req.user.id, req.params.id);
+        res.status(200).json({ message: 'Project deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+module.exports = { createProject, getProjects, getProjectById, updateProject, deleteProject };

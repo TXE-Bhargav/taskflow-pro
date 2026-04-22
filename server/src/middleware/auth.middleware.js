@@ -19,6 +19,7 @@ const protect = async (req, res, next) => {
 
     // 3. Verify token — throws error if expired or invalid
     const decoded = verifyAccessToken(token);
+    // console.log('🔍 DECODED TOKEN:', decoded);
 
     // 4. Find user in DB — confirm they still exist
     const user = await prisma.user.findUnique({
@@ -35,6 +36,7 @@ const protect = async (req, res, next) => {
     next(); // Move to the next function (controller)
 
   } catch (error) {
+       console.error('❌ Auth middleware error:', error.message); 
     return res.status(401).json({ message: 'Not authorized, token failed' });
   }
 };
