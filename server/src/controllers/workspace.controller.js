@@ -24,7 +24,7 @@ const getUserWorkspaces = async (req, res) => {
             data: reslut
         });
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching workspaces' });
+        res.status(500).json({ message: error.message});
     }
 };
 
