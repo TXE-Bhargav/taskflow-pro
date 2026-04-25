@@ -2,6 +2,8 @@
 
 const prisma = require('../config/prisma');
 
+const { queueTaskAssignedEmail, queueCommentEmail } = require('../config/emailQueue');
+
 // Helper to verify user has access to project
 const verifyProjectAccess = async (userId, projectId) => {
     const project = await prisma.project.findUnique({
@@ -48,6 +50,27 @@ const createTask = async (userId, projectId, data) => {
                 _count: { select: { comments: true } }
             }
         });
+
+        // If task was assigned to someone, send them an email notification
+        if (data.assigneeId && data.assigneeId !== userId) {
+            const assignee = await prisma.user.findUnique({
+                where: { id: data.assigneeId },
+                select: { email: true, name: true }
+            });
+            const creator = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true }
+            });
+            if (assignee) {
+                await queueTaskAssignedEmail(
+                    assignee.email,
+                    assignee.name,
+                    data.title,
+                    'Your Project', // We'll make this dynamic later
+                    creator.name
+                );
+            }
+        }
 
         return task;
     });
@@ -245,7 +268,26 @@ const addComment = async (userId, taskId, content) => {
         if (!task) throw new Error('Task not found');
 
         await verifyProjectAccess(userId, task.projectId);
-
+        // Notify task creator about new comment (if commenter is different person)
+        if (task.creatorId !== userId) {
+            const creator = await prisma.user.findUnique({
+                where: { id: task.creatorId },
+                select: { email: true, name: true }
+            });
+            const commenter = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { name: true }
+            });
+            if (creator) {
+                await queueCommentEmail(
+                    creator.email,
+                    creator.name,
+                    task.title,
+                    commenter.name,
+                    content
+                );
+            }
+        }
         return await tx.comment.create({
             data: { content, taskId, authorId: userId },
             include: {

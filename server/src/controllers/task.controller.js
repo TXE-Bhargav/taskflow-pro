@@ -9,7 +9,7 @@ const catchAsync = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
 
 // ─── VALID VALUES FROM SCHEMA ENUMS ──────────────────────────
-const VALID_STATUSES   = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
+const VALID_STATUSES = ['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE'];
 const VALID_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 // ─── CREATE TASK ─────────────────────────────────────────────
@@ -47,15 +47,21 @@ const createTask = catchAsync(async (req, res) => {
   // ── Build clean data object — only include fields that were provided ──
   const taskData = {
     title: title.trim(),
-    ...(description  && { description: description.trim() }),
-    ...(status       && { status }),
-    ...(priority     && { priority }),
-    ...(dueDate      && { dueDate: new Date(dueDate) }),
-    ...(assigneeId   && { assigneeId }),
-    ...(parentId     && { parentId }),
+    ...(description && { description: description.trim() }),
+    ...(status && { status }),
+    ...(priority && { priority }),
+    ...(dueDate && { dueDate: new Date(dueDate) }),
+    ...(assigneeId && { assigneeId }),
+    ...(parentId && { parentId }),
   };
 
   const result = await taskService.createTask(req.user.id, projectId, taskData);
+  // Emit to everyone in this workspace — task was created
+  req.io.to(`workspace:${req.body.workspaceId}`).emit('task:created', {
+    task: result,
+    createdBy: req.user.name
+  });
+
   res.status(201).json(result);
 });
 
@@ -107,12 +113,12 @@ const updateTask = catchAsync(async (req, res) => {
   // Only update fields that were actually sent
   // If a field is undefined, Prisma ignores it — so we won't accidentally wipe data
   const updateData = {
-    ...(title       !== undefined && { title: title.trim() }),
+    ...(title !== undefined && { title: title.trim() }),
     ...(description !== undefined && { description: description.trim() }),
-    ...(status      !== undefined && { status }),
-    ...(priority    !== undefined && { priority }),
-    ...(dueDate     !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
-    ...(assigneeId  !== undefined && { assigneeId: assigneeId || null }),
+    ...(status !== undefined && { status }),
+    ...(priority !== undefined && { priority }),
+    ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+    ...(assigneeId !== undefined && { assigneeId: assigneeId || null }),
   };
 
   if (Object.keys(updateData).length === 0) {
@@ -120,6 +126,12 @@ const updateTask = catchAsync(async (req, res) => {
   }
 
   const result = await taskService.updateTask(req.user.id, req.params.id, updateData);
+
+  // Emit update to workspace
+  req.io.to(`workspace:${req.body.workspaceId}`).emit('task:updated', {
+    task: result,
+    updatedBy: req.user.name
+  });
   res.json(result);
 });
 
@@ -144,12 +156,25 @@ const moveTask = catchAsync(async (req, res) => {
   }
 
   const result = await taskService.moveTask(req.user.id, req.params.id, { status, position });
+  // Emit move event — this triggers the card animation on all clients
+  req.io.to(`workspace:${req.body.workspaceId}`).emit('task:moved', {
+    taskId: req.params.id,
+    status: req.body.status,
+    position: req.body.position,
+    movedBy: req.user.name
+  });
   res.json(result);
 });
 
 // ─── DELETE TASK ──────────────────────────────────────────────
 const deleteTask = catchAsync(async (req, res) => {
   const result = await taskService.deleteTask(req.user.id, req.params.id);
+
+  req.io.to(`workspace:${req.body.workspaceId}`).emit('task:deleted', {
+    taskId: req.params.id,
+    deletedBy: req.user.name
+  });
+
   res.json(result);
 });
 
@@ -162,6 +187,11 @@ const addComment = catchAsync(async (req, res) => {
   }
 
   const result = await taskService.addComment(req.user.id, req.params.id, content.trim());
+  // Emit new comment — everyone sees it instantly without refresh
+  req.io.to(`workspace:${req.body.workspaceId}`).emit('comment:added', {
+    comment: result,
+    taskId: req.params.id
+  });
   res.status(201).json(result);
 });
 

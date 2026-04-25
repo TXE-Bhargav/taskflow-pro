@@ -2,7 +2,8 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const prisma = require('../config/prisma');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../config/jwt');
-const { sendVerificationEmail, sendResetEmail } = require('../config/email');
+const { queueVerificationEmail, queueResetEmail } = require('../config/emailQueue');
+
 
 // ─── REGISTER ───────────────────────────────────────────────
 const register = async (name, email, password) => {
@@ -24,7 +25,7 @@ const register = async (name, email, password) => {
         }
     });
 
-    await sendVerificationEmail(email, name, verifyToken);
+    await queueVerificationEmail(email, name, verifyToken);
 
     return { message: 'Registration successful! Please verify your email.' };
 };
@@ -117,7 +118,7 @@ const forgotPassword = async (email) => {
         data: { resetToken, resetTokenExp }
     });
 
-    await sendResetEmail(email, user.name, resetToken);
+    await queueResetEmail(email, user.name, resetToken);
 
     return { message: 'If that email exists, a reset link has been sent.' };
 };
