@@ -32,8 +32,8 @@ const getUserWorkspaces = async (userId) => {
             }
         },
         include: {
-            _count: { select: { projects: true, member: true } },
-            owner: { slect: { id: true, name: true } }
+            _count: { select: { projects: true, members: true } },
+            owner: { select: { id: true, name: true } }
         }
     });
 
