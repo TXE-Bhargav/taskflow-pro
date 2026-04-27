@@ -5,6 +5,7 @@ const projectsRoutes = require('./project.routes');
 const notificationRoutes = require('./notification.routes');
 const aiRoutes = require('./ai.routes');
 const analyticsRoutes = require('./analytics.routes');
+const userRoutes = require('./user.routes');
 
 const router = require('express').Router();
 
@@ -16,6 +17,7 @@ router.use('/projects',                          projectsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/ai', aiRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/users', userRoutes);
 
 
 module.exports = router;
