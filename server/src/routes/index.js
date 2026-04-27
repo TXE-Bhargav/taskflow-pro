@@ -12,6 +12,7 @@ router.use('/auth', authRoutes);
 router.use('/workspaces', workspaceRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/workspaces/:workspaceId/projects', projectsRoutes);
+router.use('/projects',                          projectsRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/ai', aiRoutes);
 router.use('/analytics', analyticsRoutes);

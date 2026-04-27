@@ -139,30 +139,27 @@ const updateTask = catchAsync(async (req, res) => {
 const moveTask = catchAsync(async (req, res) => {
   const { status, position } = req.body;
 
-  // Both fields are required for a move operation
-  if (!status) {
-    return res.status(400).json({ message: 'status is required' });
-  }
-  if (position === undefined || position === null) {
-    return res.status(400).json({ message: 'position is required' });
-  }
+  if (!status) return res.status(400).json({ message: 'status is required' });
   if (!VALID_STATUSES.includes(status)) {
-    return res.status(400).json({
-      message: `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`
-    });
-  }
-  if (typeof position !== 'number' || position < 0) {
-    return res.status(400).json({ message: 'position must be a non-negative number' });
+    return res.status(400).json({ message: `Invalid status` });
   }
 
-  const result = await taskService.moveTask(req.user.id, req.params.id, { status, position });
-  // Emit move event — this triggers the card animation on all clients
-  req.io.to(`workspace:${req.body.workspaceId}`).emit('task:moved', {
-    taskId: req.params.id,
-    status: req.body.status,
-    position: req.body.position,
-    movedBy: req.user.name
+  // Convert position to number — it can come as string
+  const pos = parseInt(position ?? 0, 10);
+
+  const result = await taskService.moveTask(req.user.id, req.params.id, {
+    status,
+    position: isNaN(pos) ? 0 : pos
   });
+
+  if (req.io && req.body.workspaceId) {
+    req.io.to(`workspace:${req.body.workspaceId}`).emit('task:moved', {
+      taskId: req.params.id,
+      status,
+      movedBy: req.user.name
+    });
+  }
+
   res.json(result);
 });
 

@@ -32,9 +32,21 @@ const register = async (name, email, password) => {
 
 // ─── VERIFY EMAIL ────────────────────────────────────────────
 const verifyEmail = async (token) => {
-    const user = await prisma.user.findFirst({ where: { verifyToken: token } });
-    if (!user) throw new Error('Invalid or expired verification link');
 
+    // Find user with this token
+    const user = await prisma.user.findFirst({
+        where: { verifyToken: token }
+    });
+
+    // Token not found — either invalid or already used
+    if (!user) {
+        return {
+            status: 'already_verified',
+            message: 'This email is already verified! You can log in.'
+        };
+    }
+
+    // Token found — verify the user now
     await prisma.user.update({
         where: { id: user.id },
         data: {
@@ -43,7 +55,10 @@ const verifyEmail = async (token) => {
         }
     });
 
-    return { message: 'Email verified! You can now log in.' };
+    return {
+        status: 'verified',
+        message: 'Email verified successfully! You can now log in.'
+    };
 };
 
 // ─── LOGIN ───────────────────────────────────────────────────

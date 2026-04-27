@@ -21,24 +21,30 @@ api.interceptors.request.use((config) => {
 // Runs after EVERY response
 // If token expired (401) → automatically gets new token and retries
 api.interceptors.response.use(
-  (response) => response, // Success — just return response
+  (response) => response,
 
   async (error) => {
     const original = error.config;
 
-    // If 401 and we haven't already retried
-    if (error.response?.status === 401 && !original._retry) {
+    // Only retry on 401 AND only for non-auth routes
+    if (
+      error.response?.status === 401 &&
+      !original._retry &&
+      !original.url.includes('/auth/login') &&
+      !original.url.includes('/auth/register')
+    ) {
       original._retry = true;
 
       try {
         const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) throw new Error('No refresh token');
+
         const res = await axios.post(
           `${import.meta.env.VITE_API_URL}/auth/refresh-token`,
           { refreshToken }
         );
 
         localStorage.setItem('accessToken', res.data.accessToken);
-
         original.headers.Authorization = `Bearer ${res.data.accessToken}`;
         return api(original);
 

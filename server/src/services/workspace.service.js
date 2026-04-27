@@ -46,8 +46,7 @@ const getWorkspaceById = async (workspaceId, userId) => {
     const member = await prisma.workspaceMember.findUnique({
         where: {
             workspaceId_userId: {
-                workspaceId,
-                userId
+                userId, workspaceId
             }
         }
     });

@@ -1,17 +1,30 @@
-// authStore.js — Global auth state using Zustand
-// Zustand is simpler than Redux — just a function that returns state + actions
-// Any component can read/update this state without prop drilling
-
 import { create } from 'zustand';
 
+// Safely parse user from localStorage
+const getStoredUser = () => {
+  try {
+    const user = localStorage.getItem('user');
+    // Check for null, undefined string, or empty string
+    if (!user || user === 'undefined' || user === 'null') return null;
+    return JSON.parse(user);
+  } catch {
+    return null;
+  }
+};
+
+const getStoredToken = () => {
+  const token = localStorage.getItem('accessToken');
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
+};
+
 const useAuthStore = create((set) => ({
+  user: getStoredUser(),
+  isAuthenticated: !!getStoredToken(),
 
-  // Initial state — read from localStorage so user stays logged in on refresh
-  user:           JSON.parse(localStorage.getItem('user')) || null,
-  isAuthenticated: !!localStorage.getItem('accessToken'),
-
-  // Actions — functions that update state
-  setUser: (user) => set({ user, isAuthenticated: true }),
+  setUser: (user) => {
+    set({ user, isAuthenticated: true });
+  },
 
   logout: () => {
     localStorage.clear();

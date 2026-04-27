@@ -33,12 +33,12 @@ const verifyEmail = async (req, res) => {
     try {
         const { token } = req.query;
         if (!token) {
-            return res.status(400).json({ message: 'Token is required' });
+            return res.status(400).json({ status: 'error', message: 'Token is required' });
         }
-        await authservice.verifyEmail(token);
-        res.status(200).json({ message: 'Email verified successfully' });
+        const result = await authservice.verifyEmail(token);
+        res.status(200).json({ status: 'success', result, message: 'Email verified successfully' });
     } catch (error) {
-        res.status(500).json({ message: error.message })
+        res.status(500).json({ status: 'error', message: error.message })
     }
 }
 
@@ -49,13 +49,16 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'All fields are required' });
         }
 
-        if(!/\S+@\S+\.\S+/.test(email)) {
+        if (!/\S+@\S+\.\S+/.test(email)) {
             return res.status(400).json({ message: 'Invalid email format' });
         }
-        const result = await authservice.login({email, password});
+        const result = await authservice.login({ email, password });
         res.status(200).json({
             message: 'Login successful',
-           result
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+            user: result.user
+
         })
     } catch (error) {
         res.status(500).json({ message: error.message })
@@ -67,13 +70,13 @@ const logout = async (req, res) => {
         const result = await authservice.logout(req.user.id);
         res.status(200).json({ message: result.message });
     } catch (error) {
-        res.status(500).json({ message: error.message })        
+        res.status(500).json({ message: error.message })
     }
 }
 
-const refreshToken  = async (req , res) => {
+const refreshToken = async (req, res) => {
     try {
-        const {token} = req.body;
+        const { token } = req.body;
         if (!token) {
             return res.status(400).json({ message: 'Token is required' });
         }
@@ -122,11 +125,11 @@ const resetPassword = async (req, res) => {
 }
 
 module.exports = {
-  register,
-  verifyEmail,
-  login,
-  refreshToken,
-  logout,
-  forgotPassword,
-  resetPassword
+    register,
+    verifyEmail,
+    login,
+    refreshToken,
+    logout,
+    forgotPassword,
+    resetPassword
 };

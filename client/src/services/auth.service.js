@@ -4,29 +4,35 @@ export const authService = {
 
     register: async (userData) => {
         const res = await api.post('/auth/register', userData);
-        return res;
+        return res.data;
     },
 
     login: async (credentials) => {
         const res = await api.post('/auth/login', credentials);
 
-        localStorage.setItem('accessToken', res.data.accessToken);
-        localStorage.setItem('refreshToken', res.data.refreshToken);
-        localStorage.setItem('user', JSON.stringify(res.data.user));
+        // res.data = { message, accessToken, refreshToken, user }
+        const { accessToken, refreshToken, user } = res.data;
 
-        return res;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+        localStorage.setItem('user', JSON.stringify(user));
+
+        // Return user so LoginPage can update Zustand store
+        return { user };
     },
 
     logout: async () => {
-        await api.post('/auth/logout');
+        try {
+            await api.post('/auth/logout');
+        } catch (e) { }
         localStorage.clear();
-
     },
 
     verifyEmail: async (token) => {
-        const res = await api.post(`/auth/verify-email?token=${token}`);
-        return res;
+        const res = await api.get(`/auth/verify-email?token=${token}`);
+        return res.data;
     },
+
     forgotPassword: async (email) => {
         const res = await api.post('/auth/forgot-password', { email });
         return res.data;
@@ -36,4 +42,4 @@ export const authService = {
         const res = await api.post('/auth/reset-password', { token, newPassword });
         return res.data;
     }
-}
+};
