@@ -13,6 +13,9 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
+/* ========================
+   CORS CONFIGURATION
+======================== */
 const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
@@ -21,57 +24,79 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (Postman, mobile apps)
-        if (!origin) return callback(null, true);
+        if (!origin) return callback(null, true); // allow Postman / mobile
         if (allowedOrigins.includes(origin)) return callback(null, true);
-        callback(new Error(`CORS blocked: ${origin}`));
+        return callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true
 }));
 
+/* ========================
+   SOCKET.IO
+======================== */
 const io = new Server(server, {
     cors: {
         origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true
     }
-}); 
+});
 
+/* ========================
+   MIDDLEWARES
+======================== */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Attach io to request
 app.use((req, res, next) => {
     req.io = io;
     next();
 });
-app.use("/api", routes);
+
+/* ========================
+   ROUTES
+======================== */
+app.use('/api', routes);
 
 require('./src/config/socket')(io);
 
+/* ========================
+   ERROR HANDLER
+======================== */
 app.use((err, req, res, next) => {
-    console.error(err.message);
+    console.error('❌ Error:', err.message);
     res.status(500).json({ message: err.message || 'Something went wrong' });
 });
 
+/* ========================
+   HEALTH CHECK
+======================== */
 app.get('/', (req, res) => {
     res.json({
         message: '🚀 TaskFlow Pro API is running!'
     });
-})
+});
 
+/* ========================
+   SERVER START (IMPORTANT)
+======================== */
 const PORT = process.env.PORT || 5000;
 
-async function main() {
+server.listen(PORT, () => {
+    console.log(`✅ Server running on port ${PORT}`);
+});
+
+/* ========================
+   DATABASE CONNECTION
+======================== */
+async function connectDB() {
     try {
         await prisma.$connect();
         console.log('✅ PostgreSQL connected successfully!');
-
-        server.listen(PORT, () => {
-            console.log(`✅ Server running on http://localhost:${PORT}`);
-        });
     } catch (error) {
         console.error('❌ Database connection failed:', error);
-        process.exit(1);
     }
 }
 
-main();
+connectDB();
