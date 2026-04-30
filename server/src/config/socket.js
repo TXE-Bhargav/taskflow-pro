@@ -2,10 +2,13 @@ const prisma = require('./prisma');
 const { verifyAccessToken } = require('./jwt');
 
 module.exports = (io) => {
+
     io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth.token;
-            if (!token) return next(new Error("Authentication error: No token provided"));
+            console.log('Socket auth token received:', token ? 'present' : 'MISSING');
+
+            if (!token) return next(new Error('Authentication error: No token provided'));
 
             const decode = verifyAccessToken(token);
             const user = await prisma.user.findUnique({
@@ -13,26 +16,21 @@ module.exports = (io) => {
                 select: { id: true, name: true, email: true }
             });
 
-            if (!user) return next(new Error("Authentication error: User not found"));
+            if (!user) return next(new Error('Authentication error: User not found'));
 
-            soket.user = user;
+            socket.user = user; // ✅ Fixed typo
             next();
         } catch (error) {
-            next(new Error("Authentication error: Invalid token"));
+            console.error('Socket auth failed:', error.message);
+            next(new Error('Authentication error: Invalid token'));
         }
     });
 
     io.on('connection', (socket) => {
         console.log(`🔌 User connected: ${socket.user.name} (${socket.id})`);
 
-        // Each user automatically joins their own private room
-        // This lets us send notifications to a specific user
         socket.join(`user:${socket.user.id}`);
         console.log(`🔔 ${socket.user.name} joined personal room`);
-        
-        // ── JOIN WORKSPACE ROOM ──────────────────────────────────
-        // Frontend emits this when user opens a workspace
-        // This puts the socket in a room = they receive workspace events
 
         socket.on('join:workspace', async (workspaceId) => {
             try {
@@ -40,15 +38,17 @@ module.exports = (io) => {
                     where: {
                         userId_workspaceId: {
                             userId: socket.user.id,
-                            worspaceId
+                            workspaceId  // ✅ Fixed typo
                         }
                     }
                 });
 
-                if (!member) return socket.emit('error', { message: 'Access denied: Not a workspace member' });
+                if (!member) {
+                    return socket.emit('error', { message: 'Access denied: Not a workspace member' });
+                }
 
-                socket.join(`workspace: ${workspaceId}`);
-                console.log(`📥 ${socket.user.name} joined workspace ${workspaceId}`);
+                socket.join(`workspace:${workspaceId}`); // ✅ Fixed space
+                console.log(`📥 ${socket.user.name} joined workspace:${workspaceId}`);
 
                 socket.to(`workspace:${workspaceId}`).emit('user:online', {
                     userId: socket.user.id,
@@ -56,22 +56,19 @@ module.exports = (io) => {
                 });
 
             } catch (error) {
-                console.error('Error occurred while joining workspace:', error);
-                socket.emit('error', { message: 'An error occurred while joining the workspace' });
+                console.error('Error joining workspace:', error);
+                socket.emit('error', { message: 'Failed to join workspace' });
             }
         });
-        // ── LEAVE WORKSPACE ROOM ─────────────────────────────────
+
         socket.on('leave:workspace', (workspaceId) => {
             socket.leave(`workspace:${workspaceId}`);
-
             socket.to(`workspace:${workspaceId}`).emit('user:offline', {
                 userId: socket.user.id,
                 name: socket.user.name
             });
         });
 
-        // ── TYPING INDICATOR IN COMMENTS ─────────────────────────
-        // When user starts typing a comment, others see "John is typing..."
         socket.on('typing:start', ({ workspaceId, taskId }) => {
             socket.to(`workspace:${workspaceId}`).emit('typing:start', {
                 userId: socket.user.id,
@@ -87,11 +84,8 @@ module.exports = (io) => {
             });
         });
 
-        // ── DISCONNECT ───────────────────────────────────────────
         socket.on('disconnect', () => {
             console.log(`🔌 User disconnected: ${socket.user.name}`);
         });
-
     });
-
-}
+};

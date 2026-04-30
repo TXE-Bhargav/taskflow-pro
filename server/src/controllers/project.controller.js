@@ -46,5 +46,50 @@ const deleteProject = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+const archiveProject = async (req, res) => {
+    try {
+        const result = await projectService.archiveProject(req.user.id, req.params.id);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
-module.exports = { createProject, getProjects, getProjectById, updateProject, deleteProject };
+const getProjectMembers = async (req, res) => {
+    try {
+        const result = await projectService.getProjectMembers(req.user.id, req.params.id);
+        res.json(result);
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+
+};
+
+const inviteToProject = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: 'Email is required' });
+        const result = await projectService.inviteToProject(req.user.id, req.params.id, email);
+        res.status(201).json(result);
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const removeMemberFromProject = async (req, res) => {
+    try {
+        const result = await projectService.removeMemberFromProject(
+            req.user.id, req.params.id, req.params.userId
+        );
+        res.json(result);
+
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+
+
+module.exports = { createProject, getProjects, getProjectById, updateProject, deleteProject, archiveProject, getProjectMembers, inviteToProject,removeMemberFromProject };

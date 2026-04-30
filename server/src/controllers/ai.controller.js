@@ -138,10 +138,36 @@ const improveDescription = catchAsync(async (req, res) => {
   res.json(result);
 });
 
+const suggestWorkspace = catchAsync(async (req, res) => {
+  if (!checkRateLimit(req.user.id)) {
+    return res.status(429).json({ message: 'AI rate limit reached. Try again in an hour.' });
+  }
+
+  const { rawIdea } = req.body;
+  if (!rawIdea) return res.status(400).json({ message: 'Raw idea is required' });
+
+  const result = await aiService.suggestWorkspace(rawIdea);
+  res.json(result);
+});
+
+const suggestProject = catchAsync(async (req, res) => {
+  if (!checkRateLimit(req.user.id)) {
+    return res.status(429).json({ message: 'AI rate limit reached. Try again in an hour.' });
+  }
+
+  const { rawIdea, workspaceName } = req.body;
+  if (!rawIdea || !workspaceName) return res.status(400).json({ message: 'Raw idea and workspace name are required' });
+
+  const result = await aiService.suggestProject(rawIdea, workspaceName);
+  res.json(result);
+});
+
 module.exports = {
   breakdownTask,
   prioritizeTasks,
   suggestDueDate,
   generateStandup,
-  improveDescription
+  improveDescription,
+  suggestWorkspace,
+  suggestProject
 };

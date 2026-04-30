@@ -29,6 +29,7 @@ model User {
   createdTasks      Task[]            @relation("TaskCreator")
   comments          Comment[]
   notifications     Notification[]
+  projectMembers ProjectMember[]
 }
 
 // ─── WORKSPACE ───────────────────────────────────────────────
@@ -55,6 +56,7 @@ model Workspace {
 model WorkspaceMember {
   id          String          @id @default(uuid())
   role        WorkspaceRole   @default(MEMBER)
+  status    InviteStatus    @default(ACTIVE)
   joinedAt    DateTime        @default(now())
 
   userId      String
@@ -83,6 +85,22 @@ model Project {
   // Relations
   tasks  Task[]
   labels Label[]
+  projectMembers ProjectMember[]
+}
+
+// ─── PROJECT MEMBER ──────────────────────────────────────────
+model ProjectMember {
+  id       String      @id @default(uuid())
+  role     ProjectRole @default(MEMBER)
+  joinedAt DateTime    @default(now())
+
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
 }
 
 // ─── TASK ────────────────────────────────────────────────────
@@ -184,7 +202,11 @@ enum ProjectStatus {
   ACTIVE
   ARCHIVED
 }
-
+enum InviteStatus {
+  PENDING
+  ACTIVE
+  DECLINED
+}
 enum TaskStatus {
   TODO
   IN_PROGRESS
@@ -197,4 +219,9 @@ enum TaskPriority {
   MEDIUM
   HIGH
   URGENT
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
 }

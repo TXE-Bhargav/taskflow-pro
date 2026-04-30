@@ -19,5 +19,9 @@ router.post('/suggest-date',           aiController.suggestDueDate);
 router.post('/improve',                aiController.improveDescription);
 router.get('/standup',                 aiController.generateStandup);
 router.get('/prioritize/:projectId',   aiController.prioritizeTasks);
+router.post('/suggest-workspace' ,      aiController.suggestWorkspace);
+router.post('/suggest-project' ,      aiController.suggestProject);
+
+
 
 module.exports = router;

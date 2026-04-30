@@ -13,7 +13,7 @@ const callGroq = async (systemPrompt, userMessage) => {
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userMessage  }
+      { role: 'user', content: userMessage }
     ],
     temperature: 0.7,
     max_tokens: 1000
@@ -45,7 +45,7 @@ Respond with exactly this JSON:
   ]
 }`;
 
-  const raw     = await callGroq(system, user);
+  const raw = await callGroq(system, user);
   const cleaned = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(cleaned);
 };
@@ -78,7 +78,7 @@ Respond with exactly this JSON:
   "summary": "One sentence overall recommendation"
 }`;
 
-  const raw     = await callGroq(system, user);
+  const raw = await callGroq(system, user);
   const cleaned = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(cleaned);
 };
@@ -109,7 +109,7 @@ Respond with exactly this JSON:
   ]
 }`;
 
-  const raw     = await callGroq(system, user);
+  const raw = await callGroq(system, user);
   const cleaned = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(cleaned);
 };
@@ -138,7 +138,7 @@ Respond with exactly this JSON:
   }
 }`;
 
-  const raw     = await callGroq(system, user);
+  const raw = await callGroq(system, user);
   const cleaned = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(cleaned);
 };
@@ -168,8 +168,54 @@ Respond with exactly this JSON:
   }
 }`;
 
-  const raw     = await callGroq(system, user);
+  const raw = await callGroq(system, user);
   const cleaned = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(cleaned);
+};
+
+const suggestWorkspace = async (rawIdea) => {
+  const prompt = `
+You are a product naming expert.
+Based on this raw idea, suggest a workspace name, description, and 5 initial projects.
+Respond with valid JSON only. No markdown, no explanation.
+
+Raw idea: "${rawIdea}"
+
+Respond with exactly this JSON:
+{
+  "name": "Short workspace name (2-4 words)",
+  "description": "One sentence describing the workspace purpose",
+  "suggestedProjects": [
+    { "name": "Project name", "description": "One sentence" }
+  ]
+}`;
+  const raw = await callGroq(prompt, prompt);
+  const cleaned = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
+  return JSON.parse(cleaned);
+};
+
+const suggestProject = async (rawIdea, workspaceName) => {
+  const prompt = `
+You are a project management expert.
+Based on this raw idea, suggest a project name, description, and 5 initial tasks.
+Respond with valid JSON only. No markdown, no explanation.
+
+Workspace: "${workspaceName}"
+Raw idea: "${rawIdea}"
+
+Respond with exactly this JSON:
+{
+  "name": "Short project name",
+  "description": "One sentence describing the project",
+  "suggestedTasks": [
+    {
+      "title": "Task title",
+      "priority": "LOW | MEDIUM | HIGH | URGENT"
+    }
+  ]
+}`;
+  const raw = await callGroq(prompt, prompt);
+  const cleaned = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
   return JSON.parse(cleaned);
 };
 
@@ -178,5 +224,7 @@ module.exports = {
   prioritizeTasks,
   suggestDueDate,
   generateStandup,
-  improveDescription
+  improveDescription,
+  suggestWorkspace,
+  suggestProject
 };

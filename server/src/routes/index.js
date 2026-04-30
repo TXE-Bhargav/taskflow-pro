@@ -6,8 +6,7 @@ const notificationRoutes = require('./notification.routes');
 const aiRoutes = require('./ai.routes');
 const analyticsRoutes = require('./analytics.routes');
 const userRoutes = require('./user.routes');
-
-const router = require('express').Router();
+const router = require('express').Router({ mergeParams: true }); // ← add mergeParams
 
 router.use('/auth', authRoutes);
 router.use('/workspaces', workspaceRoutes);

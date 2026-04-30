@@ -83,9 +83,7 @@ const refreshToken = async (req, res) => {
         const result = await authservice.refreshAccessToken(token);
         res.status(200).json({
             message: 'Token refreshed successfully',
-            data: {
-                token: result.token
-            }
+            accessToken: result.accessToken
         });
     } catch (error) {
         res.status(500).json({ message: error.message })
