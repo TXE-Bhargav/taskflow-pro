@@ -5,9 +5,25 @@
 const Bull = require('bull');
 const { sendVerificationEmail, sendResetEmail, sendTaskAssignedEmail, sendCommentEmail } = require('./email');
 
+const redisConfig = process.env.NODE_ENV === 'production'
+    ? { url: process.env.REDIS_URL, tls: { rejectUnauthorized: false } }
+    : {
+        redis: {
+            host: process.env.REDIS_HOST || '127.0.0.1',
+            port: process.env.REDIS_PORT || 6379,
+        }
+    };
+
 const emailQueue = new Bull('email', {
-    radis: {
-        host: process.env.REDIS_HOST || '127.0.0.1',
+    redis: redisConfig.redis || { host: process.env.REDIS_HOST || '127.0.0.1', port: process.env.REDIS_PORT || 6379 },
+    defaultJobOptions: {
+        attempts: 3,           // Retry up to 3 times if it fails
+        backoff: {
+            type: 'exponential',  // Wait longer between each retry
+            delay: 5000          // Start with 5 second delay
+        },
+        removeOnComplete: true, // Remove job from queue when done
+        removeOnFail: false,     // Keep failed jobs for debugging
         port: process.env.REDIS_PORT || 6379
     },
     defaultJobOptions: {
