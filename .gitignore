@@ -3,7 +3,3 @@ node_modules/
 .env.local
 dist/
 build/
-server/package-lock.json
-server/package.json
-client/package-lock.json
-client/package.json
