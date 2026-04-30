@@ -35,7 +35,7 @@ const io = new Server(server, {
         methods: ['GET', 'POST'],
         credentials: true
     }
-}); Z
+}); 
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
