@@ -1,3 +1,5 @@
+// DashboardPage.jsx — Dark premium workspace dashboard
+
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -10,7 +12,6 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import Input from "../components/ui/Input";
 
-// ── Greeting based on time of day ──
 const getGreeting = () => {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -18,47 +19,101 @@ const getGreeting = () => {
   return "Good evening";
 };
 
-// ── Workspace color map — cycles through accent colors ──
-const COLORS = [
+const WS_ACCENTS = [
   {
-    bg: "bg-violet-100",
-    text: "text-violet-600",
-    hover: "group-hover:bg-violet-500",
-    border: "hover:border-violet-200",
+    text: "text-violet-400",
+    bg: "bg-violet-400/10",
+    border: "border-violet-400/20",
+    dot: "bg-violet-400",
   },
   {
-    bg: "bg-sky-100",
-    text: "text-sky-600",
-    hover: "group-hover:bg-sky-500",
-    border: "hover:border-sky-200",
+    text: "text-sky-400",
+    bg: "bg-sky-400/10",
+    border: "border-sky-400/20",
+    dot: "bg-sky-400",
   },
   {
-    bg: "bg-emerald-100",
-    text: "text-emerald-600",
-    hover: "group-hover:bg-emerald-500",
-    border: "hover:border-emerald-200",
+    text: "text-emerald-400",
+    bg: "bg-emerald-400/10",
+    border: "border-emerald-400/20",
+    dot: "bg-emerald-400",
   },
   {
-    bg: "bg-amber-100",
-    text: "text-amber-600",
-    hover: "group-hover:bg-amber-500",
-    border: "hover:border-amber-200",
+    text: "text-amber-400",
+    bg: "bg-amber-400/10",
+    border: "border-amber-400/20",
+    dot: "bg-amber-400",
   },
   {
-    bg: "bg-rose-100",
-    text: "text-rose-600",
-    hover: "group-hover:bg-rose-500",
-    border: "hover:border-rose-200",
+    text: "text-rose-400",
+    bg: "bg-rose-400/10",
+    border: "border-rose-400/20",
+    dot: "bg-rose-400",
+  },
+  {
+    text: "text-cyan-400",
+    bg: "bg-cyan-400/10",
+    border: "border-cyan-400/20",
+    dot: "bg-cyan-400",
   },
 ];
-
-const getColor = (index) => COLORS[index % COLORS.length];
+const getAccent = (i) => WS_ACCENTS[i % WS_ACCENTS.length];
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
+
+  // AI suggestion state
+  const [aiIdea, setAiIdea] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const generateWorkspaceSuggestion = async () => {
+    if (!aiIdea.trim()) return;
+    setAiLoading(true);
+    try {
+      const res = await api.post("/ai/suggest-workspace", { rawIdea: aiIdea });
+      reset({ name: res.data.name, description: res.data.description });
+      toast.success("AI filled in the details!");
+    } catch (e) {
+      toast.error("AI suggestion failed");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Pending invites
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["pending-invites"],
+    queryFn: async () => {
+      const res = await api.get("/workspaces/invites/pending");
+      return res.data;
+    },
+  });
+
+  const acceptInvite = useMutation({
+    mutationFn: async (workspaceId) => {
+      const res = await api.post(`/workspaces/${workspaceId}/accept`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["workspaces"]);
+      queryClient.invalidateQueries(["pending-invites"]);
+      toast.success("Joined workspace!");
+    },
+  });
+
+  const declineInvite = useMutation({
+    mutationFn: async (workspaceId) => {
+      const res = await api.post(`/workspaces/${workspaceId}/decline`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(["pending-invites"]);
+      toast.success("Invite declined");
+    },
+  });
 
   const { data: workspaces = [], isLoading } = useQuery({
     queryKey: ["workspaces"],
@@ -87,114 +142,149 @@ const DashboardPage = () => {
       toast.success("Workspace created!");
       reset();
       setShowModal(false);
+      setAiIdea("");
       if (newWs?.id) navigate(`/workspace/${newWs.id}`);
     },
-    onError: (err) => {
-      toast.error(err.response?.data?.message || "Failed to create workspace");
-    },
+    onError: (err) =>
+      toast.error(err.response?.data?.message || "Failed to create workspace"),
   });
+
+  const totalProjects = workspaces.reduce(
+    (a, ws) => a + (ws._count?.projects || 0),
+    0,
+  );
+  const uniqueMemberIds = new Set(
+    workspaces.flatMap(
+      (ws) => ws.members?.map((m) => m.userId || m.user?.id) || [],
+    ),
+  );
+
+  const totalMembers = uniqueMemberIds.size;
 
   return (
     <Layout>
-      {/* ── Page header ── */}
-      <div className="flex items-start justify-between mb-10">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-8">
         <div>
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-1">
+          <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-1">
             Dashboard
           </p>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-            {getGreeting()}, {user?.name?.split(" ")[0]} 👋
+          <h1 className="text-[22px] font-semibold text-ink-1 tracking-tight leading-tight">
+            {getGreeting()}, {user?.name?.split(" ")[0]}
           </h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-[12.5px] text-ink-3 mt-1">
             {workspaces.length > 0
-              ? `You have ${workspaces.length} workspace${workspaces.length > 1 ? "s" : ""}`
+              ? `${workspaces.length} workspace${workspaces.length > 1 ? "s" : ""} · ${totalProjects} projects`
               : "Create your first workspace to get started"}
           </p>
         </div>
-        <Button onClick={() => setShowModal(true)} size="md">
-          <span className="text-lg leading-none">+</span> New Workspace
+        <Button onClick={() => setShowModal(true)} size="sm">
+          + New Workspace
         </Button>
       </div>
 
-      {/* ── Stats bar — only show when workspaces exist ── */}
+      {/* ── Pending invites — always rendered, not gated behind workspaces check ── */}
+      {pendingInvites.length > 0 && (
+        <div className="mb-6">
+          <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-3">
+            Pending invites · {pendingInvites.length}
+          </p>
+          <div className="space-y-2">
+            {pendingInvites.map((invite) => (
+              <div
+                key={invite.id}
+                className="card-base px-4 py-3 flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 bg-accent/15 border border-accent/25 rounded-lg flex items-center justify-center text-accent-300 font-bold text-sm flex-shrink-0">
+                    {invite.workspace.name[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-ink-1 truncate">
+                      {invite.workspace.name}
+                    </p>
+                    <p className="text-[11.5px] text-ink-4">
+                      Invited by {invite.workspace.owner.name}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => declineInvite.mutate(invite.workspaceId)}
+                    loading={declineInvite.isPending}
+                  >
+                    Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => acceptInvite.mutate(invite.workspaceId)}
+                    loading={acceptInvite.isPending}
+                  >
+                    Accept →
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Stats ── */}
       {workspaces.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-3 gap-3 mb-8">
           {[
-            {
-              label: "Total workspaces",
-              value: workspaces.length,
-              icon: "🏢",
-            },
-            {
-              label: "Total projects",
-              value: workspaces.reduce(
-                (a, ws) => a + (ws._count?.projects || 0),
-                0,
-              ),
-              icon: "📁",
-            },
-            {
-              label: "Team members",
-              value: workspaces.reduce(
-                (a, ws) => a + (ws._count?.members || 0),
-                0,
-              ),
-              icon: "👥",
-            },
+            { label: "Workspaces", value: workspaces.length, icon: "🏢" },
+            { label: "Projects", value: totalProjects, icon: "📁" },
+            { label: "Members", value: totalMembers, icon: "👥" },
           ].map((stat) => (
             <div
               key={stat.label}
-              className="bg-white rounded-xl px-5 py-4 border border-gray-100 flex items-center gap-4"
+              className="card-base px-4 py-3.5 flex items-center gap-3"
             >
-              <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-xl">
+              <div className="w-8 h-8 bg-surface-3 rounded-md flex items-center justify-center text-base flex-shrink-0">
                 {stat.icon}
               </div>
               <div>
-                <p className="text-xl font-semibold text-gray-900">
+                <p className="text-lg font-semibold text-ink-1 leading-tight">
                   {stat.value}
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">{stat.label}</p>
+                <p className="text-[11.5px] text-ink-4 mt-0.5">{stat.label}</p>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Section label ── */}
+      {/* ── Section header ── */}
       {workspaces.length > 0 && (
-        <p className="text-xs font-medium text-gray-400 uppercase tracking-widest mb-4">
+        <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-3">
           Your workspaces
         </p>
       )}
 
-      {/* ── Loading skeleton ── */}
+      {/* ── Loading ── */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="bg-white rounded-xl p-6 border border-gray-100 animate-pulse space-y-3"
-            >
-              <div className="w-10 h-10 bg-gray-100 rounded-xl" />
-              <div className="h-4 bg-gray-100 rounded w-1/2" />
-              <div className="h-3 bg-gray-50 rounded w-3/4" />
-              <div className="flex gap-3 pt-2">
-                <div className="h-3 bg-gray-50 rounded w-16" />
-                <div className="h-3 bg-gray-50 rounded w-16" />
-              </div>
+            <div key={i} className="card-base p-5 space-y-3">
+              <div className="skeleton w-8 h-8 rounded-md" />
+              <div className="skeleton h-3.5 w-2/5 rounded" />
+              <div className="skeleton h-3 w-3/4 rounded" />
             </div>
           ))}
         </div>
       ) : workspaces.length === 0 ? (
         /* ── Empty state ── */
-        <div className="flex flex-col items-center justify-center py-28 text-center">
-          <div className="w-20 h-20 bg-primary-50 rounded-3xl flex items-center justify-center text-4xl mb-5 shadow-inner">
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-14 h-14 bg-surface-3 border border-border-2 rounded-xl flex items-center justify-center text-2xl mb-5">
             🚀
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          <h2 className="text-base font-semibold text-ink-1 mb-2">
             Create your first workspace
           </h2>
-          <p className="text-gray-400 text-sm mb-8 max-w-xs leading-relaxed">
+          <p className="text-[12.5px] text-ink-3 mb-7 max-w-xs leading-relaxed">
             Workspaces help you organise projects, collaborate with your team,
             and track progress all in one place.
           </p>
@@ -203,60 +293,41 @@ const DashboardPage = () => {
           </Button>
         </div>
       ) : (
-        /* ── Workspace grid ── */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        /* ── Grid ── */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workspaces.map((ws, index) => {
-            const color = getColor(index);
+            const accent = getAccent(index);
             return (
               <div
                 key={ws.id}
                 onClick={() => navigate(`/workspace/${ws.id}`)}
-                className={`
-                  group bg-white rounded-xl p-6 border border-gray-100
-                  ${color.border} hover:shadow-md
-                  transition-all duration-200 cursor-pointer
-                `}
+                className="card-base p-5 cursor-pointer hover:bg-surface-3 hover:border-border-3 hover:shadow-card-hover transition-all duration-150 group"
               >
-                {/* Top row */}
                 <div className="flex items-start justify-between mb-4">
                   <div
-                    className={`
-                    w-11 h-11 ${color.bg} ${color.text} ${color.hover}
-                    group-hover:text-white rounded-xl flex items-center justify-center
-                    font-semibold text-base transition-colors duration-200
-                  `}
+                    className={`w-9 h-9 ${accent.bg} ${accent.text} border ${accent.border} rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0`}
                   >
                     {ws.name[0].toUpperCase()}
                   </div>
-                  <span className="text-xs text-gray-300 font-medium bg-gray-50 px-2 py-1 rounded-lg">
+                  <span className="text-[10.5px] text-ink-4 bg-surface-4 border border-border-2 px-2 py-0.5 rounded-full">
                     {ws.owner?.name === user?.name ? "Owner" : "Member"}
                   </span>
                 </div>
 
-                {/* Name + description */}
-                <h3 className="font-semibold text-gray-900 mb-1 truncate">
+                <h3 className="font-semibold text-[13.5px] text-ink-1 mb-1 truncate group-hover:text-accent-300 transition-colors">
                   {ws.name}
                 </h3>
-                <p className="text-gray-400 text-xs mb-5 line-clamp-2 leading-relaxed">
-                  {ws.description || "No description added yet"}
+                <p className="text-[12px] text-ink-4 mb-5 truncate-2 leading-relaxed min-h-[2rem]">
+                  {ws.description || "No description"}
                 </p>
 
-                {/* Footer stats */}
-                <div className="flex items-center justify-between pt-4 border-t border-gray-50">
-                  <div className="flex items-center gap-3 text-xs text-gray-400">
-                    <span className="flex items-center gap-1">
-                      <span>📁</span>
-                      {ws._count?.projects || 0} project
-                      {ws._count?.projects !== 1 ? "s" : ""}
-                    </span>
-                    <span className="w-px h-3 bg-gray-200" />
-                    <span className="flex items-center gap-1">
-                      <span>👥</span>
-                      {ws._count?.members || 0} member
-                      {ws._count?.members !== 1 ? "s" : ""}
-                    </span>
+                <div className="flex items-center justify-between pt-3.5 border-t border-border-1">
+                  <div className="flex items-center gap-3 text-[11.5px] text-ink-4">
+                    <span>{ws._count?.projects || 0} projects</span>
+                    <span className="w-px h-3 bg-border-2" />
+                    <span>{ws._count?.members || 0} members</span>
                   </div>
-                  <span className="text-xs text-gray-300 group-hover:text-primary-400 transition-colors">
+                  <span className="text-[11px] text-ink-4 group-hover:text-accent-400 transition-colors">
                     Open →
                   </span>
                 </div>
@@ -264,26 +335,27 @@ const DashboardPage = () => {
             );
           })}
 
-          {/* ── Add new workspace card ── */}
+          {/* Add card */}
           <div
             onClick={() => setShowModal(true)}
-            className="group bg-white rounded-xl p-6 border border-dashed border-gray-200 hover:border-primary-300 hover:bg-primary-50/30 transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-3 min-h-[180px]"
+            className="border border-dashed border-border-2 rounded-lg p-5 hover:border-accent/30 hover:bg-accent/[0.03] transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 min-h-[160px] group"
           >
-            <div className="w-11 h-11 bg-gray-100 group-hover:bg-primary-100 rounded-xl flex items-center justify-center text-gray-400 group-hover:text-primary-500 text-xl font-light transition-colors duration-200">
+            <div className="w-9 h-9 bg-surface-3 group-hover:bg-accent/10 border border-border-2 group-hover:border-accent/30 rounded-lg flex items-center justify-center text-ink-4 group-hover:text-accent-400 text-lg transition-all">
               +
             </div>
-            <p className="text-sm font-medium text-gray-400 group-hover:text-primary-500 transition-colors">
+            <p className="text-[12px] font-medium text-ink-4 group-hover:text-accent-400 transition-colors">
               New workspace
             </p>
           </div>
         </div>
       )}
 
-      {/* ── Create workspace modal ── */}
+      {/* ── Create Modal ── */}
       <Modal
         isOpen={showModal}
         onClose={() => {
           setShowModal(false);
+          setAiIdea("");
           reset();
         }}
         title="Create Workspace"
@@ -292,6 +364,38 @@ const DashboardPage = () => {
           onSubmit={handleSubmit((data) => createMutation.mutate(data))}
           className="space-y-4"
         >
+          {/* AI suggestion box */}
+          <div className="bg-accent/[0.05] border border-accent/15 rounded-lg p-3">
+            <p className="text-[11px] font-semibold text-accent-400 mb-2">
+              ✦ AI Assistant
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiIdea}
+                onChange={(e) => setAiIdea(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  (e.preventDefault(), generateWorkspaceSuggestion())
+                }
+                placeholder="Describe your idea in plain words..."
+                className="input-base h-8 px-3 flex-1 text-[12.5px]"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                loading={aiLoading}
+                onClick={generateWorkspaceSuggestion}
+              >
+                Generate
+              </Button>
+            </div>
+            <p className="text-[11px] text-ink-4 mt-1.5">
+              AI will fill the name and description for you
+            </p>
+          </div>
+
           <Input
             label="Workspace name"
             placeholder="e.g. My Startup, Design Team"
@@ -299,17 +403,14 @@ const DashboardPage = () => {
             {...register("name", { required: "Name is required" })}
           />
           <Input
-            label="Description (optional)"
-            placeholder="What is this workspace for?"
+            label="Description"
+            placeholder="What is this workspace for? (optional)"
             {...register("description")}
           />
-
-          {/* Tips */}
-          <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-400 leading-relaxed">
+          <div className="bg-surface-3 border border-border-2 rounded-lg p-3 text-[11.5px] text-ink-4 leading-relaxed">
             💡 Workspaces contain projects and members. You can invite teammates
             after creating.
           </div>
-
           <div className="flex gap-3 pt-1">
             <Button
               type="button"
@@ -317,6 +418,7 @@ const DashboardPage = () => {
               className="flex-1"
               onClick={() => {
                 setShowModal(false);
+                setAiIdea("");
                 reset();
               }}
             >

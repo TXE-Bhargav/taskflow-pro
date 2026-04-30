@@ -1,3 +1,5 @@
+// VerifyEmailPage.jsx — Dark premium centered card
+
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/auth.service';
@@ -5,189 +7,135 @@ import { authService } from '../services/auth.service';
 const VerifyEmailPage = () => {
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
-
-  // 4 possible states: loading | success | already_verified | error
   const [status, setStatus]   = useState('loading');
   const [message, setMessage] = useState('');
 
   useEffect(() => {
     const token = searchParams.get('token');
-
-    if (!token) {
-      setStatus('error');
-      setMessage('No verification token found in the link.');
-      return;
-    }
-
+    if (!token) { setStatus('error'); setMessage('No verification token found in the link.'); return; }
     let called = false;
-
     const verify = async () => {
       if (called) return;
       called = true;
-
       try {
         const res = await authService.verifyEmail(token);
-
-        // Backend tells us exactly what happened
-        if (res.status === 'already_verified') {
-          setStatus('already_verified');
-        } else {
-          setStatus('success');
-        }
+        setStatus(res.status === 'already_verified' ? 'already_verified' : 'success');
         setMessage(res.message);
-
       } catch (err) {
         setStatus('error');
-        setMessage(
-          err.response?.data?.message ||
-          'Verification failed. Link may be expired.'
-        );
+        setMessage(err.response?.data?.message || 'Verification failed. Link may be expired.');
       }
     };
-
     verify();
     return () => { called = true; };
   }, []);
 
-  // Auto redirect on success only (not already_verified)
   useEffect(() => {
     if (status !== 'success') return;
-    const timer = setTimeout(() => navigate('/login'), 4000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => navigate('/login'), 4000);
+    return () => clearTimeout(t);
   }, [status, navigate]);
 
+  const states = {
+    loading: {
+      icon: (
+        <div className="w-12 h-12 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+      ),
+      iconBg: 'bg-accent/10 border-accent/20',
+      title: 'Verifying your email',
+      sub: 'Please wait a moment...',
+    },
+    success: {
+      icon: (
+        <svg className="w-6 h-6 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+      iconBg: 'bg-success/10 border-success/20',
+      title: 'Email verified',
+      sub: null,
+    },
+    already_verified: {
+      icon: (
+        <svg className="w-6 h-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      iconBg: 'bg-info/10 border-info/20',
+      title: 'Already verified',
+      sub: null,
+    },
+    error: {
+      icon: (
+        <svg className="w-6 h-6 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ),
+      iconBg: 'bg-danger/10 border-danger/20',
+      title: 'Verification failed',
+      sub: null,
+    },
+  };
+
+  const s = states[status];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-0 flex items-center justify-center p-4">
+      {/* Ambient glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Background blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-5%] w-72 h-72 bg-indigo-100 rounded-full opacity-40 blur-3xl" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 bg-purple-100 rounded-full opacity-30 blur-3xl" />
-      </div>
-
-      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-10 text-center border border-gray-100">
-
+      <div className="relative bg-surface-2 border border-border-2 rounded-xl shadow-modal w-full max-w-sm p-8 text-center animate-slide-up">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-10">
-          <div className="w-9 h-9 bg-indigo-500 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-md shadow-indigo-200">
-            T
-          </div>
-          <span className="font-bold text-xl text-gray-900">TaskFlow Pro</span>
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="w-6 h-6 bg-accent rounded flex items-center justify-center text-surface-0 font-bold text-[10px]">T</div>
+          <span className="font-semibold text-ink-1 text-[13px]">TaskFlow<span className="text-accent-400"> Pro</span></span>
         </div>
 
-        {/* ── LOADING ── */}
-        {status === 'loading' && (
-          <div className="flex flex-col items-center gap-5">
-            <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center">
-              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Verifying your email
-              </h2>
-              <p className="text-gray-400 text-sm">Please wait a moment...</p>
-            </div>
-          </div>
-        )}
+        {/* Icon */}
+        <div className={`w-14 h-14 ${s.iconBg} border rounded-full flex items-center justify-center mx-auto mb-5`}>
+          {s.icon}
+        </div>
 
-        {/* ── SUCCESS ── */}
+        <h2 className="text-base font-semibold text-ink-1 mb-2">{s.title}</h2>
+
+        {message && <p className="text-[12.5px] text-ink-3 mb-5 leading-relaxed">{message}</p>}
+        {s.sub    && <p className="text-[12px] text-ink-4 mb-5">{s.sub}</p>}
+
+        {/* Success progress bar */}
         {status === 'success' && (
-          <div className="flex flex-col items-center gap-6">
-            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center ring-8 ring-green-50">
-              <svg className="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Email Verified! 🎉
-              </h2>
-              <p className="text-gray-500 text-sm">{message}</p>
-              <p className="text-gray-300 text-xs mt-2">
-                Redirecting to login in a few seconds...
-              </p>
-            </div>
-            <div className="w-full bg-gray-100 rounded-full h-1 overflow-hidden">
-              <div
-                className="h-full bg-green-500 rounded-full"
-                style={{ animation: 'progress 4s linear forwards' }}
-              />
-            </div>
-            <Link
-              to="/login"
-              className="w-full inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-100 text-sm"
-            >
-              Go to Login now →
-            </Link>
+          <div className="w-full bg-surface-4 rounded-full h-0.5 overflow-hidden mb-5">
+            <div className="h-full bg-accent rounded-full" style={{ animation: 'progress 4s linear forwards' }} />
           </div>
         )}
 
-        {/* ── ALREADY VERIFIED ── */}
+        {/* Already verified info */}
         {status === 'already_verified' && (
-          <div className="flex flex-col items-center gap-6">
-            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center ring-8 ring-blue-50">
-              <svg className="w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Already Verified ✓
-              </h2>
-              <p className="text-gray-500 text-sm">{message}</p>
-              <p className="text-gray-400 text-xs mt-2">
-                No action needed — your account is ready to use.
-              </p>
-            </div>
-
-            {/* Info box */}
-            <div className="w-full bg-blue-50 border border-blue-100 rounded-xl p-4 text-left">
-              <p className="text-blue-700 text-xs font-medium mb-1">What does this mean?</p>
-              <p className="text-blue-500 text-xs leading-relaxed">
-                Your email was already verified. This happens if you clicked the verification link more than once. Your account is fully active!
-              </p>
-            </div>
-
-            <Link
-              to="/login"
-              className="w-full inline-flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-100 text-sm"
-            >
-              Go to Login →
-            </Link>
+          <div className="bg-info/10 border border-info/20 rounded-lg p-3 text-left mb-5">
+            <p className="text-[11.5px] text-info/80 leading-relaxed">
+              Your email was already verified. This happens if you clicked the link more than once. Your account is fully active.
+            </p>
           </div>
         )}
 
-        {/* ── ERROR ── */}
-        {status === 'error' && (
-          <div className="flex flex-col items-center gap-6">
-            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center ring-8 ring-red-50">
-              <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-2">
-                Verification Failed
-              </h2>
-              <p className="text-gray-400 text-sm">{message}</p>
-            </div>
-            <div className="flex flex-col gap-3 w-full">
-              <Link
-                to="/login"
-                className="w-full inline-flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white font-medium px-6 py-3 rounded-xl transition-all shadow-md shadow-indigo-100 text-sm"
-              >
-                Go to Login
-              </Link>
+        {/* CTAs */}
+        {status !== 'loading' && (
+          <div className="flex flex-col gap-2">
+            <Link
+              to="/login"
+              className="w-full inline-flex items-center justify-center h-9 bg-accent hover:bg-accent-300 text-surface-0 font-semibold rounded-md text-[13px] transition-colors"
+            >
+              Go to login →
+            </Link>
+            {status === 'error' && (
               <Link
                 to="/register"
-                className="w-full inline-flex items-center justify-center border border-gray-200 hover:bg-gray-50 text-gray-600 font-medium px-6 py-3 rounded-xl transition-colors text-sm"
+                className="w-full inline-flex items-center justify-center h-9 bg-surface-3 hover:bg-surface-4 border border-border-2 text-ink-2 font-medium rounded-md text-[13px] transition-colors"
               >
                 Create new account
               </Link>
-            </div>
+            )}
           </div>
         )}
-
       </div>
     </div>
   );

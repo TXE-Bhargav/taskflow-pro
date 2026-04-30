@@ -12,8 +12,15 @@ const verifyProjectAccess = async (userId, projectId) => {
     });
     if (!project) throw new Error('Project not found');
 
-    const isMember = project.workspace.members.some(m => m.userId === userId);
-    if (!isMember) throw new Error('Access denied');
+    // Workspace admins/owners can always access
+    const wsMember = project.workspace.members.find(m => m.userId === userId);
+    if (wsMember?.role === 'OWNER' || wsMember?.role === 'ADMIN') return project;
+
+    // Regular members must be project members
+    const projMember = await prisma.projectMember.findUnique({
+        where: { userId_projectId: { userId, projectId } }
+    });
+    if (!projMember) throw new Error('Access denied to this project');
 
     return project;
 };
@@ -108,15 +115,27 @@ const getTaskById = async (userId, taskId) => {
             assignee: { select: { id: true, name: true, avatar: true } },
             creator: { select: { id: true, name: true } },
             labels: { include: { label: true } },
-            subtasks: true,
+            project: { select: { id: true, workspaceId: true, name: true, color: true } },
+            subtasks: {
+                include: {
+                    assignee: { select: { id: true, name: true } }
+                },
+                orderBy: { createdAt: 'asc' }
+            },
             comments: {
-                include: { author: { select: { id: true, name: true, avatar: true } } },
+                include: {
+                    author: { select: { id: true, name: true, avatar: true } }
+                },
                 orderBy: { createdAt: 'asc' }
             }
         }
     });
+
     if (!task) throw new Error('Task not found');
+
+    // Verify access using projectId
     await verifyProjectAccess(userId, task.projectId);
+
     return task;
 };
 
@@ -259,26 +278,46 @@ const addLabel = async (userId, taskId, labelId) => {
 
 // Add comment to task
 const addComment = async (userId, taskId, content) => {
-    return await prisma.$transaction(async (tx) => {
-        const task = await tx.task.findUnique({
-            where: { id: taskId },
-            select: { projectId: true }
-        });
 
-        if (!task) throw new Error('Task not found');
+    // Fetch task WITH creatorId included
+    const task = await prisma.task.findUnique({
+        where: { id: taskId },
+        select: {
+            id: true,
+            title: true,
+            creatorId: true,
+            projectId: true,
+            project: { select: { workspaceId: true } }
+        }
+    });
 
-        await verifyProjectAccess(userId, task.projectId);
-        // Notify task creator about new comment (if commenter is different person)
-        if (task.creatorId !== userId) {
+    if (!task) throw new Error('Task not found');
+
+    await verifyProjectAccess(userId, task.projectId);
+
+    // Create the comment
+    const comment = await prisma.comment.create({
+        data: { content, taskId, authorId: userId },
+        include: {
+            author: { select: { id: true, name: true, avatar: true } }
+        }
+    });
+
+    // Notify task creator only if commenter is different person
+    // AND creatorId actually exists
+    if (task.creatorId && task.creatorId !== userId) {
+        try {
             const creator = await prisma.user.findUnique({
                 where: { id: task.creatorId },
                 select: { email: true, name: true }
             });
+
             const commenter = await prisma.user.findUnique({
                 where: { id: userId },
                 select: { name: true }
             });
-            if (creator) {
+
+            if (creator && commenter) {
                 await queueCommentEmail(
                     creator.email,
                     creator.name,
@@ -287,14 +326,13 @@ const addComment = async (userId, taskId, content) => {
                     content
                 );
             }
+        } catch (emailErr) {
+            // Don't fail the comment if email fails
+            console.error('Comment email error:', emailErr.message);
         }
-        return await tx.comment.create({
-            data: { content, taskId, authorId: userId },
-            include: {
-                author: { select: { id: true, name: true, avatar: true } }
-            }
-        });
-    });
+    }
+
+    return comment;
 };
 
 const removeLabel = async (userId, taskId, labelId) => {
