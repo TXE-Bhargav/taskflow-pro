@@ -4,8 +4,12 @@ const { sendVerificationEmail, sendResetEmail, sendTaskAssignedEmail, sendCommen
 // ─── REDIS CONFIG ────────────────────────────────────────────
 const bullConfig = process.env.NODE_ENV === 'production'
     ? {
-        redis: process.env.REDIS_URL,
-        tls: { rejectUnauthorized: false }
+        redis: {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT),
+            password: process.env.REDIS_PASSWORD,
+            tls: { rejectUnauthorized: false }
+        }
     }
     : {
         redis: {
