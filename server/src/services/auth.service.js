@@ -25,7 +25,7 @@ const register = async (name, email, password) => {
         }
     });
 
-    await queueVerificationEmail(email, name, verifyToken);
+     queueVerificationEmail(email, name, verifyToken);
 
     return { message: 'Registration successful! Please verify your email.' };
 };
@@ -133,7 +133,7 @@ const forgotPassword = async (email) => {
         data: { resetToken, resetTokenExp }
     });
 
-    await queueResetEmail(email, user.name, resetToken);
+     queueResetEmail(email, user.name, resetToken);
 
     return { message: 'If that email exists, a reset link has been sent.' };
 };
