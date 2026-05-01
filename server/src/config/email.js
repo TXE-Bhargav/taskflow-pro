@@ -1,9 +1,6 @@
-const Brevo = require('@getbrevo/brevo');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-const client = Brevo.ApiClient.instance;
-client.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
-
-const transactionalApi = new Brevo.TransactionalEmailsApi();
+const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
 
 const baseTemplate = (content) => `
   <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
@@ -25,17 +22,17 @@ const buttonStyle = `
 `;
 
 const sendEmail = async (to, subject, html) => {
-  const email = new Brevo.SendSmtpEmail();
-  email.sender = { name: 'TaskFlow Pro', email: process.env.BREVO_SENDER_EMAIL };
-  email.to = [{ email: to }];
-  email.subject = subject;
-  email.htmlContent = html;
-  await transactionalApi.sendTransacEmail(email);
+    await client.transactionalEmails.sendTransacEmail({
+        sender: { name: 'TaskFlow Pro', email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html
+    });
 };
 
 const sendVerificationEmail = async (email, name, token) => {
-  const url = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
-  await sendEmail(email, 'Verify your TaskFlow Pro account', baseTemplate(`
+    const url = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
+    await sendEmail(email, 'Verify your TaskFlow Pro account', baseTemplate(`
         <h2>Welcome, ${name}! 👋</h2>
         <p>Thanks for signing up. Please verify your email to get started.</p>
         <a href="${url}" style="${buttonStyle}">Verify Email</a>
@@ -46,8 +43,8 @@ const sendVerificationEmail = async (email, name, token) => {
 };
 
 const sendResetEmail = async (email, name, token) => {
-  const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
-  await sendEmail(email, 'Reset your TaskFlow Pro password', baseTemplate(`
+    const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+    await sendEmail(email, 'Reset your TaskFlow Pro password', baseTemplate(`
         <h2>Password Reset Request</h2>
         <p>Hi ${name}, we received a request to reset your password.</p>
         <a href="${url}" style="${buttonStyle}">Reset Password</a>
@@ -58,7 +55,7 @@ const sendResetEmail = async (email, name, token) => {
 };
 
 const sendTaskAssignedEmail = async (email, name, taskTitle, projectName, assignedBy) => {
-  await sendEmail(email, `You've been assigned a task: ${taskTitle}`, baseTemplate(`
+    await sendEmail(email, `You've been assigned a task: ${taskTitle}`, baseTemplate(`
         <h2>New Task Assigned 📋</h2>
         <p>Hi ${name}, <strong>${assignedBy}</strong> assigned you a task.</p>
         <div style="background:white;padding:16px;border-radius:8px;border-left:4px solid #6366f1;margin:16px 0">
@@ -70,7 +67,7 @@ const sendTaskAssignedEmail = async (email, name, taskTitle, projectName, assign
 };
 
 const sendCommentEmail = async (email, name, taskTitle, commenterName, comment) => {
-  await sendEmail(email, `New comment on: ${taskTitle}`, baseTemplate(`
+    await sendEmail(email, `New comment on: ${taskTitle}`, baseTemplate(`
         <h2>New Comment 💬</h2>
         <p>Hi ${name}, <strong>${commenterName}</strong> commented on <strong>${taskTitle}</strong>.</p>
         <div style="background:white;padding:16px;border-radius:8px;border-left:4px solid #6366f1;margin:16px 0">
@@ -81,8 +78,8 @@ const sendCommentEmail = async (email, name, taskTitle, commenterName, comment) 
 };
 
 module.exports = {
-  sendVerificationEmail,
-  sendResetEmail,
-  sendTaskAssignedEmail,
-  sendCommentEmail
+    sendVerificationEmail,
+    sendResetEmail,
+    sendTaskAssignedEmail,
+    sendCommentEmail
 };
