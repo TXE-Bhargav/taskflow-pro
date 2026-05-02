@@ -219,6 +219,37 @@ Respond with exactly this JSON:
   return JSON.parse(cleaned);
 };
 
+
+// ─── FEATURE 6: Generate Tasks From Raw Idea ──────────────────
+const generateTasksFromIdea = async (rawIdea, projectName, count = 5) => {
+  const system = `You are a professional project manager AI assistant.
+Generate actionable tasks based on a project idea.
+Always respond with valid JSON only. No explanation, no markdown, just raw JSON.`;
+
+  const user = `
+Generate exactly ${count} tasks for this project.
+Project: "${projectName}"
+Idea: "${rawIdea}"
+Today: ${new Date().toISOString().split('T')[0]}
+ 
+Spread due dates realistically across the next 2-4 weeks.
+Respond with exactly this JSON:
+{
+  "tasks": [
+    {
+      "title": "Clear actionable task title",
+      "description": "2 sentence description",
+      "priority": "LOW | MEDIUM | HIGH | URGENT",
+      "dueDate": "YYYY-MM-DD"
+    }
+  ]
+}`;
+
+  const raw = await callGroq(system, user);
+  const cleaned = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
+  return JSON.parse(cleaned);
+};
+
 module.exports = {
   breakdownTask,
   prioritizeTasks,
@@ -226,5 +257,6 @@ module.exports = {
   generateStandup,
   improveDescription,
   suggestWorkspace,
-  suggestProject
+  suggestProject,
+  generateTasksFromIdea
 };

@@ -64,6 +64,7 @@ const DashboardPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false); // ✅ new
 
   // AI suggestion state
   const [aiIdea, setAiIdea] = useState("");
@@ -125,6 +126,21 @@ const DashboardPage = () => {
     },
   });
 
+  const { data: allProjects = [] } = useQuery({
+    queryKey: ["all-projects-members", workspaces.map((w) => w.id)],
+    queryFn: async () => {
+      const results = await Promise.all(
+        workspaces.map((ws) =>
+          api
+            .get(`/workspaces/${ws.id}/projects`)
+            .then((r) => (Array.isArray(r.data) ? r.data : r.data?.data || [])),
+        ),
+      );
+      return results.flat();
+    },
+    enabled: workspaces.length > 0,
+  });
+
   const {
     register,
     handleSubmit,
@@ -153,13 +169,41 @@ const DashboardPage = () => {
     (a, ws) => a + (ws._count?.projects || 0),
     0,
   );
-  const uniqueMemberIds = new Set(
-    workspaces.flatMap(
-      (ws) => ws.members?.map((m) => m.userId || m.user?.id) || [],
-    ),
+
+  // ✅ Fix: backend returns m.userId (not m.user?.id) at the projectMembers level
+  // but also includes m.user object — handle both shapes safely
+  const getMemberId = (m) => m.user?.id || m.userId;
+
+  const myProjectIds = new Set(
+    allProjects
+      .filter((p) => p.projectMembers?.some((m) => getMemberId(m) === user?.id))
+      .map((p) => p.id),
   );
 
-  const totalMembers = uniqueMemberIds.size;
+  // ✅ Build a deduplicated map of all co-members (excluding self)
+  const coMembersMap = new Map(); // id → member object
+  allProjects
+    .filter((p) => myProjectIds.has(p.id))
+    .forEach((p) => {
+      p.projectMembers?.forEach((m) => {
+        const id = getMemberId(m);
+        if (id && id !== user?.id && !coMembersMap.has(id)) {
+          coMembersMap.set(id, {
+            id,
+            name: m.user?.name || "Unknown",
+            email: m.user?.email || "",
+            // collect which projects they share with current user
+            sharedProjects: [p.name],
+          });
+        } else if (id && id !== user?.id) {
+          // append shared project name if already in map
+          coMembersMap.get(id).sharedProjects.push(p.name);
+        }
+      });
+    });
+
+  const coMembers = Array.from(coMembersMap.values());
+  const totalMembers = coMembers.length;
 
   return (
     <Layout>
@@ -183,7 +227,7 @@ const DashboardPage = () => {
         </Button>
       </div>
 
-      {/* ── Pending invites — always rendered, not gated behind workspaces check ── */}
+      {/* ── Pending invites ── */}
       {pendingInvites.length > 0 && (
         <div className="mb-6">
           <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-3">
@@ -234,26 +278,74 @@ const DashboardPage = () => {
       {/* ── Stats ── */}
       {workspaces.length > 0 && (
         <div className="grid grid-cols-3 gap-3 mb-8">
-          {[
-            { label: "Workspaces", value: workspaces.length, icon: "🏢" },
-            { label: "Projects", value: totalProjects, icon: "📁" },
-            { label: "Members", value: totalMembers, icon: "👥" },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="card-base px-4 py-3.5 flex items-center gap-3"
-            >
-              <div className="w-8 h-8 bg-surface-3 rounded-md flex items-center justify-center text-base flex-shrink-0">
-                {stat.icon}
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-ink-1 leading-tight">
-                  {stat.value}
-                </p>
-                <p className="text-[11.5px] text-ink-4 mt-0.5">{stat.label}</p>
-              </div>
+          {/* Workspaces stat */}
+          <div className="card-base px-4 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-surface-3 rounded-md flex items-center justify-center text-base flex-shrink-0">
+              🏢
             </div>
-          ))}
+            <div>
+              <p className="text-lg font-semibold text-ink-1 leading-tight">
+                {workspaces.length}
+              </p>
+              <p className="text-[11.5px] text-ink-4 mt-0.5">Workspaces</p>
+            </div>
+          </div>
+
+          {/* Projects stat */}
+          <div className="card-base px-4 py-3.5 flex items-center gap-3">
+            <div className="w-8 h-8 bg-surface-3 rounded-md flex items-center justify-center text-base flex-shrink-0">
+              📁
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-ink-1 leading-tight">
+                {totalProjects}
+              </p>
+              <p className="text-[11.5px] text-ink-4 mt-0.5">Projects</p>
+            </div>
+          </div>
+
+          {/* ✅ Members stat — now clickable */}
+          <div
+            onClick={() => totalMembers > 0 && setShowMembersModal(true)}
+            className={`card-base px-4 py-3.5 flex items-center gap-3 transition-all duration-150 ${
+              totalMembers > 0
+                ? "cursor-pointer hover:bg-surface-3 hover:border-border-3 hover:shadow-card-hover"
+                : ""
+            }`}
+          >
+            <div className="w-8 h-8 bg-surface-3 rounded-md flex items-center justify-center text-base flex-shrink-0">
+              👥
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-lg font-semibold text-ink-1 leading-tight">
+                {totalMembers}
+              </p>
+              <p className="text-[11.5px] text-ink-4 mt-0.5">
+                Members
+                {totalMembers > 0 && (
+                  <span className="ml-1 text-accent-400">· view all</span>
+                )}
+              </p>
+            </div>
+            {totalMembers > 0 && (
+              <div className="flex -space-x-1.5 flex-shrink-0">
+                {coMembers.slice(0, 3).map((m) => (
+                  <div
+                    key={m.id}
+                    title={m.name}
+                    className="w-6 h-6 rounded-full bg-accent/20 border-2 border-surface-2 flex items-center justify-center text-accent-300 font-semibold text-[9px]"
+                  >
+                    {m.name[0].toUpperCase()}
+                  </div>
+                ))}
+                {coMembers.length > 3 && (
+                  <div className="w-6 h-6 rounded-full bg-surface-4 border-2 border-surface-2 flex items-center justify-center text-ink-4 font-semibold text-[9px]">
+                    +{coMembers.length - 3}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -276,7 +368,6 @@ const DashboardPage = () => {
           ))}
         </div>
       ) : workspaces.length === 0 ? (
-        /* ── Empty state ── */
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-14 h-14 bg-surface-3 border border-border-2 rounded-xl flex items-center justify-center text-2xl mb-5">
             🚀
@@ -293,7 +384,6 @@ const DashboardPage = () => {
           </Button>
         </div>
       ) : (
-        /* ── Grid ── */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {workspaces.map((ws, index) => {
             const accent = getAccent(index);
@@ -350,7 +440,48 @@ const DashboardPage = () => {
         </div>
       )}
 
-      {/* ── Create Modal ── */}
+      {/* ── Members Modal ── */}
+      <Modal
+        isOpen={showMembersModal}
+        onClose={() => setShowMembersModal(false)}
+        title="Your Project Members"
+        size="md"
+      >
+        <div className="space-y-3">
+          <p className="text-[12px] text-ink-4">
+            People you share projects with across all workspaces.
+          </p>
+          <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
+            {coMembers.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-surface-3 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent-300 font-semibold text-[11px] flex-shrink-0">
+                    {m.name[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-[13px] font-medium text-ink-1">
+                      {m.name}
+                    </p>
+                    <p className="text-[11px] text-ink-4">{m.email}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10.5px] text-ink-4 max-w-[140px] truncate">
+                    {m.sharedProjects.slice(0, 2).join(", ")}
+                    {m.sharedProjects.length > 2 &&
+                      ` +${m.sharedProjects.length - 2} more`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Create Workspace Modal ── */}
       <Modal
         isOpen={showModal}
         onClose={() => {

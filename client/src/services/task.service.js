@@ -26,6 +26,11 @@ export const taskService = {
     return res.data?.data || res.data;
   },
 
+  assignTask: async (taskId, assigneeId) => {
+    const res = await api.put(`/tasks/${taskId}`, { assigneeId: assigneeId ?? null });
+    return res.data?.data || res.data;
+  },
+
   deleteTask: async (taskId) => {
     const res = await api.delete(`/tasks/${taskId}`);
     return res.data;

@@ -28,12 +28,12 @@ const createProject = async (userId, workspaceId, { name, description, color }) 
             description,
             color,
             workspaceId,
-            members: {
+            projectMembers : {
                 create: { userId, role: 'OWNER' }
             }
         },
         include: {
-            members: {
+            projectMembers : {
                 include: { user: { select: { id: true, name: true, email: true } } }
             }
         }

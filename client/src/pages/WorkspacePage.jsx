@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import api from "../services/api";
+import useAITasks from "../hooks/useAITasks";
 import Layout from "../components/layout/Layout";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
@@ -24,17 +25,84 @@ const PROJECT_COLORS = [
   "#f472b6",
 ];
 
+const PRIORITY_STYLES = {
+  URGENT: "bg-rose-400/10 border-rose-400/20 text-rose-400",
+  HIGH: "bg-amber-400/10 border-amber-400/20 text-amber-400",
+  MEDIUM: "bg-sky-400/10 border-sky-400/20 text-sky-400",
+  LOW: "bg-emerald-400/10 border-emerald-400/20 text-emerald-400",
+};
+
+const TaskCheckRow = ({ task, index, selected, onToggle }) => (
+  <div
+    onClick={() => onToggle(index)}
+    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+      selected
+        ? "bg-accent/10 border-accent/30"
+        : "bg-surface-3 border-border-2 hover:border-border-3"
+    }`}
+  >
+    <div
+      className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${
+        selected ? "bg-accent border-accent" : "border-border-3"
+      }`}
+    >
+      {selected && (
+        <svg
+          className="w-2.5 h-2.5 text-white"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={3}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+        <p
+          className={`text-[12.5px] font-medium truncate ${selected ? "text-ink-1" : "text-ink-2"}`}
+        >
+          {task.title}
+        </p>
+        <span
+          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border flex-shrink-0 ${PRIORITY_STYLES[task.priority] || PRIORITY_STYLES.MEDIUM}`}
+        >
+          {task.priority}
+        </span>
+      </div>
+      {task.description && (
+        <p className="text-[11.5px] text-ink-4 leading-relaxed line-clamp-2">
+          {task.description}
+        </p>
+      )}
+      {task.dueDate && (
+        <p className="text-[11px] text-ink-4 mt-1">📅 Due {task.dueDate}</p>
+      )}
+    </div>
+  </div>
+);
+
 const WorkspacePage = () => {
   const { id: workspaceId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showProject, setShowProject] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showAITaskModal, setShowAITaskModal] = useState(false);
   const [selectedColor, setSelectedColor] = useState(PROJECT_COLORS[0]);
+  const [createdProject, setCreatedProject] = useState(null); // { id, name }
 
-  // AI suggestion state
+  // AI workspace suggestion
   const [aiIdea, setAiIdea] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+
+  // AI task generation hook — projectId passed once we know the created project
+  const aiTasks = useAITasks(createdProject?.id);
 
   const generateProjectSuggestion = async () => {
     if (!aiIdea.trim()) return;
@@ -46,7 +114,7 @@ const WorkspacePage = () => {
       });
       reset({ name: res.data.name, description: res.data.description });
       toast.success("AI filled in the details!");
-    } catch (e) {
+    } catch {
       toast.error("AI suggestion failed");
     } finally {
       setAiLoading(false);
@@ -97,7 +165,11 @@ const WorkspacePage = () => {
       reset();
       setAiIdea("");
       setShowProject(false);
-      if (proj?.id) navigate(`/project/${proj.id}`);
+      if (proj?.id) {
+        setCreatedProject({ id: proj.id, name: proj.name });
+        aiTasks.reset();
+        setShowAITaskModal(true);
+      }
     },
     onError: (err) => toast.error(err.response?.data?.message || "Failed"),
   });
@@ -115,6 +187,20 @@ const WorkspacePage = () => {
     },
     onError: (err) => toast.error(err.response?.data?.message || "Failed"),
   });
+
+  const handleSkipAITasks = () => {
+    setShowAITaskModal(false);
+    navigate(`/project/${createdProject.id}`);
+  };
+
+  const handleAddTasks = async () => {
+    await aiTasks.addSelectedTasks();
+    setShowAITaskModal(false);
+    navigate(`/project/${createdProject.id}`);
+  };
+
+  const allSelected =
+    aiTasks.selectedIndexes.size === aiTasks.generatedTasks.length;
 
   if (wsLoading || projLoading) {
     return (
@@ -217,11 +303,9 @@ const WorkspacePage = () => {
       )}
 
       {/* ── Section label ── */}
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest">
-          Projects · {projects.length}
-        </p>
-      </div>
+      <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-3">
+        Projects · {projects.length}
+      </p>
 
       {/* ── Projects grid ── */}
       {projects.length === 0 ? (
@@ -248,12 +332,10 @@ const WorkspacePage = () => {
               onClick={() => navigate(`/project/${proj.id}`)}
               className="card-base cursor-pointer hover:bg-surface-3 hover:border-border-3 hover:shadow-card-hover transition-all duration-150 group overflow-hidden"
             >
-              {/* Color accent top bar */}
               <div
                 className="h-0.5 w-full"
                 style={{ background: proj.color || "#e8a045" }}
               />
-
               <div className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2.5">
@@ -276,29 +358,26 @@ const WorkspacePage = () => {
                     Active
                   </span>
                 </div>
-
                 {proj.description && (
                   <p className="text-[11.5px] text-ink-4 mb-3 truncate-2 leading-relaxed">
                     {proj.description}
                   </p>
                 )}
-
-                {/* Progress */}
-                <div className="mt-4 pt-4 border-t border-gray-50">
-                  <div className="flex justify-between text-xs text-gray-400 mb-1.5">
+                <div className="mt-4 pt-4 border-t border-border-1">
+                  <div className="flex justify-between text-[11.5px] text-ink-4 mb-1.5">
                     <span>Progress</span>
                     <span>{proj.progress ?? 0}%</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-1">
+                  <div className="w-full bg-surface-4 rounded-full h-1">
                     <div
                       className="h-1 rounded-full transition-all duration-500"
                       style={{
                         width: `${proj.progress ?? 0}%`,
-                        background: proj.color || "#6366f1",
+                        background: proj.color || "#e8a045",
                       }}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-[11px] text-ink-4 mt-1">
                     {proj.doneTasks ?? 0} of {proj.totalTasks ?? 0} tasks done
                   </p>
                 </div>
@@ -306,7 +385,6 @@ const WorkspacePage = () => {
             </div>
           ))}
 
-          {/* Add card */}
           <div
             onClick={() => setShowProject(true)}
             className="border border-dashed border-border-2 rounded-lg p-4 hover:border-accent/30 hover:bg-accent/[0.03] transition-all duration-150 cursor-pointer flex flex-col items-center justify-center gap-2 min-h-[140px] group"
@@ -335,7 +413,6 @@ const WorkspacePage = () => {
           onSubmit={handleSubmit((d) => createProject.mutate(d))}
           className="space-y-4"
         >
-          {/* AI suggestion box */}
           <div className="bg-accent/[0.05] border border-accent/15 rounded-lg p-3">
             <p className="text-[11px] font-semibold text-accent-400 mb-2">
               ✦ AI Assistant
@@ -378,6 +455,7 @@ const WorkspacePage = () => {
             placeholder="What is this project about? (optional)"
             {...register("description")}
           />
+
           <div>
             <label className="text-[12.5px] font-medium text-ink-2 block mb-2">
               Color
@@ -388,16 +466,21 @@ const WorkspacePage = () => {
                   key={color}
                   type="button"
                   onClick={() => setSelectedColor(color)}
-                  className={`w-5 h-5 rounded-full transition-all ${selectedColor === color ? "ring-2 ring-offset-2 ring-offset-surface-2 ring-white/40 scale-110" : "hover:scale-110 opacity-70 hover:opacity-100"}`}
+                  className={`w-5 h-5 rounded-full transition-all ${
+                    selectedColor === color
+                      ? "ring-2 ring-offset-2 ring-offset-surface-2 ring-white/40 scale-110"
+                      : "hover:scale-110 opacity-70 hover:opacity-100"
+                  }`}
                   style={{ background: color }}
                 />
               ))}
             </div>
           </div>
+
           <div className="bg-surface-3 border border-border-2 rounded-lg p-3 text-[11.5px] text-ink-4 leading-relaxed">
-            💡 Projects contain tasks organised in a Kanban board — To Do, In
-            Progress, In Review, Done.
+            💡 After creating, AI can generate an initial set of tasks for you.
           </div>
+
           <div className="flex gap-3 pt-1">
             <Button
               type="button"
@@ -420,6 +503,150 @@ const WorkspacePage = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── AI Task Generation Modal (post project creation) ── */}
+      <Modal
+        isOpen={showAITaskModal}
+        onClose={handleSkipAITasks}
+        title={
+          aiTasks.step === "preview"
+            ? "Review AI tasks"
+            : "Generate starter tasks"
+        }
+      >
+        {aiTasks.step === "form" && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3 bg-success/[0.05] border border-success/20 rounded-lg">
+              <span className="text-success text-base flex-shrink-0">✓</span>
+              <div>
+                <p className="text-[13px] font-semibold text-ink-1">
+                  "{createdProject?.name}" created!
+                </p>
+                <p className="text-[12px] text-ink-3 mt-0.5">
+                  Want AI to generate an initial set of tasks?
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-accent/[0.05] border border-accent/15 rounded-lg p-3 space-y-3">
+              <p className="text-[11px] font-semibold text-accent-400">
+                ✦ AI Task Generator
+              </p>
+              <div>
+                <label className="text-[12px] text-ink-3 block mb-1.5">
+                  Describe what needs to be done
+                </label>
+                <textarea
+                  rows={3}
+                  value={aiTasks.rawIdea}
+                  onChange={(e) => aiTasks.setRawIdea(e.target.value)}
+                  placeholder="e.g. Build the landing page with hero, features, and contact form..."
+                  className="input-base px-3 py-2 resize-none w-full text-[12.5px]"
+                />
+                <p className="text-[11px] text-ink-4 mt-1">
+                  Leave blank to auto-generate from the project name
+                </p>
+              </div>
+              <div>
+                <label className="text-[12px] text-ink-3 block mb-1.5">
+                  Number of tasks
+                </label>
+                <div className="flex gap-2">
+                  {[3, 5, 8, 10].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => aiTasks.setCount(n)}
+                      className={`flex-1 py-1.5 rounded-lg border text-[12px] font-medium transition-all ${
+                        aiTasks.count === n
+                          ? "bg-accent/10 border-accent/30 text-accent-300"
+                          : "bg-surface-3 border-border-2 text-ink-3 hover:border-border-3"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={handleSkipAITasks}
+              >
+                Skip for now
+              </Button>
+              <Button
+                className="flex-1"
+                loading={aiTasks.isGenerating}
+                onClick={() => aiTasks.generate(createdProject?.name)}
+              >
+                ✦ Generate tasks
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {aiTasks.step === "preview" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-[12px] text-ink-3">
+                {aiTasks.selectedIndexes.size} of{" "}
+                {aiTasks.generatedTasks.length} tasks selected
+              </p>
+              <button
+                onClick={allSelected ? aiTasks.deselectAll : aiTasks.selectAll}
+                className="text-[11.5px] text-accent-400 hover:text-accent-300 transition-colors"
+              >
+                {allSelected ? "Deselect all" : "Select all"}
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {aiTasks.generatedTasks.map((task, i) => (
+                <TaskCheckRow
+                  key={i}
+                  task={task}
+                  index={i}
+                  selected={aiTasks.selectedIndexes.has(i)}
+                  onToggle={aiTasks.toggleTask}
+                />
+              ))}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={aiTasks.goBack}
+              >
+                ← Back
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={aiTasks.isGenerating}
+                onClick={() => aiTasks.generate(createdProject?.name)}
+              >
+                Regenerate
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={aiTasks.selectedIndexes.size === 0}
+                loading={aiTasks.isAdding}
+                onClick={handleAddTasks}
+              >
+                Add {aiTasks.selectedIndexes.size} task
+                {aiTasks.selectedIndexes.size !== 1 ? "s" : ""} →
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* ── Invite Modal ── */}

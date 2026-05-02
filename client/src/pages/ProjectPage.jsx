@@ -13,6 +13,7 @@ import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import Input from "../components/ui/Input";
 import useSocket from "../hooks/useSocket";
+import AITaskPanel from "../components/ui/AITaskPanel";
 
 const COLUMNS = [
   {
@@ -446,7 +447,9 @@ const ProjectPage = () => {
             </svg>
             Members{members.length > 0 && ` · ${members.length}`}
           </Button>
-
+          {project && (
+            <AITaskPanel projectId={projectId} projectName={project.name} />
+          )}
           <Button
             size="sm"
             onClick={() => {

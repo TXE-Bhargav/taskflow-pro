@@ -28,4 +28,10 @@ export const aiService = {
     const res = await api.get(`/ai/prioritize/${projectId}`);
     return res.data;
   },
+
+  // Returns { tasks: [{ title, description, priority, dueDate }] }
+  generateTasksFromIdea: async ({ rawIdea, projectName, count = 5 }) => {
+    const res = await api.post('/ai/generate-tasks', { rawIdea, projectName, count });
+    return res.data;
+  },
 };

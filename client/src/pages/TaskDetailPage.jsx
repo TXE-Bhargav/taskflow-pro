@@ -14,6 +14,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import Input from "../components/ui/Input";
+import { projectService } from "../services/project.service";
 
 const STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"];
 const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
@@ -279,6 +280,12 @@ const TaskDetailPage = () => {
       setComments(t.comments || []);
       return t;
     },
+  });
+
+  const { data: projectMembers = [] } = useQuery({
+    queryKey: ["project-members", task?.projectId],
+    queryFn: () => projectService.getMembers(task?.projectId),
+    enabled: !!task?.projectId,
   });
 
   // ── Join workspace room ──
@@ -875,18 +882,20 @@ const TaskDetailPage = () => {
                 <p className="text-[10.5px] font-semibold text-ink-4 uppercase tracking-widest mb-2">
                   Assignee
                 </p>
-                {task.assignee ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent-300 font-semibold text-[10px]">
-                      {task.assignee.name[0].toUpperCase()}
-                    </div>
-                    <span className="text-[12.5px] text-ink-2">
-                      {task.assignee.name}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-[12px] text-ink-4">Unassigned</p>
-                )}
+                <select
+                  className="input-base h-9 px-3 w-full text-[12.5px]"
+                  value={task.assigneeId || ""}
+                  onChange={(e) =>
+                    updateTask.mutate({ assigneeId: e.target.value || null })
+                  }
+                >
+                  <option value="">Unassigned</option>
+                  {projectMembers.map((m) => (
+                    <option key={m.user.id} value={m.user.id}>
+                      {m.user.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

@@ -162,6 +162,21 @@ const suggestProject = catchAsync(async (req, res) => {
   res.json(result);
 });
 
+const generateTasksFromIdea = catchAsync(async (req, res) => {
+  if (!checkRateLimit(req.user.id)) {
+    return res.status(429).json({ message: 'AI rate limit reached. Try again in an hour.' });
+  }
+ 
+  const { rawIdea, projectName, count = 5 } = req.body;
+  if (!rawIdea)     return res.status(400).json({ message: 'rawIdea is required' });
+  if (!projectName) return res.status(400).json({ message: 'projectName is required' });
+ 
+  const clampedCount = Math.min(Math.max(parseInt(count) || 5, 1), 20);
+  const result = await aiService.generateTasksFromIdea(rawIdea, projectName, clampedCount);
+  res.json(result);
+});
+
+
 module.exports = {
   breakdownTask,
   prioritizeTasks,
@@ -169,5 +184,6 @@ module.exports = {
   generateStandup,
   improveDescription,
   suggestWorkspace,
-  suggestProject
+  suggestProject,
+  generateTasksFromIdea
 };

@@ -21,6 +21,8 @@ router.get('/standup',                 aiController.generateStandup);
 router.get('/prioritize/:projectId',   aiController.prioritizeTasks);
 router.post('/suggest-workspace' ,      aiController.suggestWorkspace);
 router.post('/suggest-project' ,      aiController.suggestProject);
+router.post('/generate-tasks', aiController.generateTasksFromIdea);
+
 
 
 
