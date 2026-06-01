@@ -39,7 +39,14 @@ const io = new Server(server, {
         origin: allowedOrigins,
         methods: ['GET', 'POST'],
         credentials: true
-    }
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    upgradeTimeout: 30000,
+    allowUpgrades: true,
+    perMessageDeflate: false,
 });
 
 /* ========================
@@ -51,6 +58,10 @@ app.use(express.urlencoded({ extended: true }));
 // Attach io to request
 app.use((req, res, next) => {
     req.io = io;
+    next();
+});
+app.use((req, res, next) => {
+    res.setHeader('X-Accel-Buffering', 'no'); // tells Render's nginx not to buffer
     next();
 });
 
